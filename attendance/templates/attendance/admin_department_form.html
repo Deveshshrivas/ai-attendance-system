@@ -1,0 +1,13 @@
+
+{% extends 'attendance/base.html' %}
+
+{% block title %}Create Admin Department{% endblock %}
+
+{% block content %}
+<h1>Create Admin Department</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save</button>
+</form>
+{% endblock %}

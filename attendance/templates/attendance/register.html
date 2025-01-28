@@ -1,0 +1,47 @@
+<!-- filepath: /C:/Users/deves/OneDrive/Desktop/tet/New folder (6)/AttendenceSystem/ai-attendance-system/attendance/templates/attendance/register.html -->
+{% extends 'attendance/base.html' %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<h1>Register</h1>
+<div class="tab">
+    <button class="tablinks" onclick="openForm(event, 'Student')">Student</button>
+    <button class="tablinks" onclick="openForm(event, 'Teacher')">Teacher</button>
+</div>
+
+<div id="Student" class="tabcontent">
+    <h2>Student Registration</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ student_form.as_p }}
+        <button type="submit">Register</button>
+    </form>
+</div>
+
+<div id="Teacher" class="tabcontent">
+    <h2>Teacher Registration</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ teacher_form.as_p }}
+        <button type="submit">Register</button>
+    </form>
+</div>
+
+<script>
+    function openForm(evt, formName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(formName).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+    document.getElementsByClassName("tablinks")[0].click(); // Open the first tab by default
+</script>
+{% endblock %}

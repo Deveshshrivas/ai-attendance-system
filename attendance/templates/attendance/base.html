@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Attendance System{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><a href="{% url 'index' %}">Home</a></li>
+            <li><a href="{% url 'admin_department_list' %}">Admin Departments</a></li>
+            <li><a href="{% url 'admin_department_create' %}">Create Admin Department</a></li>
+            {% if user.is_authenticated %}
+            <li><a href="{% url 'user_logout' %}">Logout</a></li>
+        {% else %}
+            <li><a href="{% url 'user_login' %}">Login</a></li>
+        {% endif %}
+            <li><a href="{% url 'register' %}">Register</a></li>
+            
+        </ul>
+    </nav>
+    <div class="content">
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+</html>

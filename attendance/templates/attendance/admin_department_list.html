@@ -1,0 +1,30 @@
+<!-- filepath: /c:/Users/deves/OneDrive/Desktop/tet/New folder (6)/AttendenceSystem/ai-attendance-system/attendance/templates/attendance/admin_department_list.html -->
+{% extends 'attendance/base.html' %}
+
+{% block title %}Admin Departments{% endblock %}
+
+{% block content %}
+<h1>Admin Departments</h1>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Description</th>
+            <th>Head</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for department in departments %}
+        <tr onclick="window.location.href='{% url 'admin_department_detail' department.pk %}'">
+            <td>{{ department.Admin_id }}</td>
+            <td>{{ department.department_name }}</td>
+            <td>{{ department.department_code }}</td>
+            <td>{{ department.department_description }}</td>
+            <td>{{ department.department_head }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

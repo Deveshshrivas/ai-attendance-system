@@ -1,0 +1,11 @@
+
+{% extends 'attendance/base.html' %}
+
+{% block title %}Admin Department Detail{% endblock %}
+
+{% block content %}
+<h1>{{ department.department_name }}</h1>
+<p><strong>Code:</strong> {{ department.department_code }}</p>
+<p><strong>Description:</strong> {{ department.department_description }}</p>
+<p><strong>Head:</strong> {{ department.department_head }}</p>
+{% endblock %}

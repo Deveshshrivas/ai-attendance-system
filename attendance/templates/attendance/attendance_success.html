@@ -1,0 +1,23 @@
+<!-- filepath: /C:/Users/deves/OneDrive/Desktop/tet/New folder (6)/AttendenceSystem/ai-attendance-system/attendance/templates/attendance/attendance_success.html -->
+{% extends 'attendance/base.html' %}
+
+{% block title %}Attendance Success{% endblock %}
+
+{% block content %}
+<h1>Attendance Marked Successfully</h1>
+<p>Your attendance has been recorded.</p>
+
+<h2>Present Students</h2>
+<ul>
+    {% for student in present_students %}
+    <li>{{ student.student_name }} ({{ student.student_Enrollment }}) - {{ student.attendance_date }}</li>
+    {% endfor %}
+</ul>
+
+<h2>Absent Students</h2>
+<ul>
+    {% for student in absent_students %}
+    <li style="color: red;">{{ student.student_name }} ({{ student.student_Enrollment }}) - {{ student.attendance_date }}</li>
+    {% endfor %}
+</ul>
+{% endblock %}
