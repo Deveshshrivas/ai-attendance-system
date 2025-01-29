@@ -1,5 +1,5 @@
-from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 class CustomUser(AbstractUser):
     is_student = models.BooleanField(default=False)
@@ -50,8 +50,8 @@ class StudentRegistration(models.Model):
     student_email = models.EmailField()
     student_phone = models.CharField(max_length=15)
     student_address = models.TextField()
-    student_photos = models.ImageField(upload_to=student_image_upload_path)
     student_password = models.CharField(max_length=100)
+    face_images = models.JSONField(default=list)  # Add this field to store face images
 
     def __str__(self):
         return self.student_name

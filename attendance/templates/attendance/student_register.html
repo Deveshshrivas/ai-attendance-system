@@ -1,0 +1,78 @@
+{% extends 'attendance/base.html' %}
+{% load form_tags %}
+
+{% block title %}Student Register{% endblock %}
+
+{% block content %}
+<h1>Student Registration</h1>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!-- User Form -->
+    {% for field in user_form %}
+        <div class="form-group">
+            {{ field.label_tag }} {{ field }}
+        </div>
+    {% endfor %}
+
+    <!-- Student Form -->
+    {% for field in student_form %}
+        <div class="form-group">
+            {{ field.label_tag }} {{ field }}
+        </div>
+    {% endfor %}
+
+    <!-- Video Preview -->
+    <div>
+        <video id="video" width="640" height="480" autoplay></video>
+        <canvas id="canvas" style="display: none;"></canvas>
+        <br>
+        <button type="button" id="startCapture">Start Face Capture</button>
+    </div>
+
+    <!-- Hidden input to store captured images -->
+    <input type="hidden" id="captured_images" name="captured_images">
+
+    <button type="submit">Register</button>
+</form>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const startCaptureButton = document.getElementById("startCapture");
+        const capturedImagesInput = document.getElementById("captured_images");
+
+        // Access the camera and display the video stream
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error("Error accessing the camera: ", err);
+                alert("Please allow camera access to capture images.");
+            });
+
+        startCaptureButton.addEventListener("click", () => {
+            const capturedImages = [];
+            const context = canvas.getContext("2d");
+
+            let count = 0;
+            const captureInterval = setInterval(() => {
+                if (count < 20) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = canvas.toDataURL("image/png"); // Convert to Base64
+                    capturedImages.push(imageData);
+                    count++;
+                } else {
+                    clearInterval(captureInterval);
+                    capturedImagesInput.value = JSON.stringify(capturedImages);
+                    alert("Face capture completed.");
+                }
+            }, 500); // Capture an image every 500 milliseconds
+        });
+    });
+</script>
+{% endblock %}

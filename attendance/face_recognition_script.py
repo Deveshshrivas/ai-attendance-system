@@ -4,75 +4,65 @@ import os
 import numpy as np
 from dotenv import load_dotenv
 from scipy.spatial import distance
+from .models import StudentRegistration
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Get the absolute path to the model files
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-shape_predictor_path = os.path.join(BASE_DIR, 'static','shape_predictor_68_face_landmarks.dat', 'shape_predictor_68_face_landmarks.dat')
-face_rec_model_path = os.path.join(BASE_DIR, 'static','dlib_face_recognition_resnet_model_v1.dat', 'dlib_face_recognition_resnet_model_v1.dat')
+shape_predictor_path = os.path.join(BASE_DIR, 'static', 'shape_predictor_68_face_landmarks.dat')
+face_rec_model_path = os.path.join(BASE_DIR, 'static', 'dlib_face_recognition_resnet_model_v1.dat')
 
 # Initialize Dlib models 
 detector = dlib.get_frontal_face_detector()
 shape_predictor = dlib.shape_predictor(shape_predictor_path)
 face_rec_model = dlib.face_recognition_model_v1(face_rec_model_path)
 
-# In-memory storage for known faces 
+# In-memory storage for known faces
 known_face_encodings = []
 known_face_names = []
 
-def capture_images(name, ip_cam_url, num_samples=20):
-    video_capture = cv2.VideoCapture(ip_cam_url)
-    if not video_capture.isOpened():
-        print("Failed to open IP camera.")
-        return
+def load_known_faces():
+    """Fetch all student IDs and load their face images from the directory."""
+    students = StudentRegistration.objects.all()
+    
+    for student in students:
+        student_id = student.id
+        student_name = student.student_name
+        student_dir = os.path.join(BASE_DIR, 'media', 'student', str(student_id))
 
-    count = 0
-    while count < num_samples:
-        ret, frame = video_capture.read()
-        if ret:
-            # Detect faces
-            faces = detector(frame, 1)
-            if len(faces) > 0:
-                for face in faces:
-                    # Align face using landmarks
-                    shape = shape_predictor(frame, face)
-                    face_chip = dlib.get_face_chip(frame, shape)
+        if os.path.exists(student_dir):
+            for file in os.listdir(student_dir):
+                image_path = os.path.join(student_dir, file)
 
-                    # Encode face and store in memory
-                    face_encoding = np.array(face_rec_model.compute_face_descriptor(face_chip))
-                    known_face_encodings.append(face_encoding)
-                    known_face_names.append(name)
-
-                    print(f"Image {count + 1} captured and encoded")
-                    cv2.imshow("Captured Image", face_chip)
-                    cv2.waitKey(500)  # Wait before capturing the next image
-                    count += 1
-
-                    if count == 10:
-                        print("Please turn your face to the left.")
-                    elif count == 15:
-                        print("Please turn your face to the right.")
-            else:
-                print("No face detected.")
+                if image_path.endswith(('.jpg', '.jpeg', '.png')):  # Ensure it's an image
+                    image = cv2.imread(image_path)
+                    faces = detector(image, 1)
+                    if len(faces) > 0:
+                        for face in faces:
+                            shape = shape_predictor(image, face)
+                            face_chip = dlib.get_face_chip(image, shape)
+                            face_encoding = np.array(face_rec_model.compute_face_descriptor(face_chip))
+                            known_face_encodings.append(face_encoding)
+                            known_face_names.append(student_name)
+                            print(f"✅ Loaded face encoding for {student_name} from {file}")
+                    else:
+                        print(f"⚠️ No face detected in {image_path}")
         else:
-            print("Failed to capture image")
-            break
-
-    video_capture.release()
-    cv2.destroyAllWindows()
+            print(f"🚫 No images found for student ID {student_id}")
 
 def recognize_faces(ip_cam_url):
+    """Recognize faces from a live camera feed using known encodings."""
     video_capture = cv2.VideoCapture(ip_cam_url)
     if not video_capture.isOpened():
-        print("Failed to open IP camera.")
+        print("⚠️ Failed to open IP camera.")
         return
 
     while True:
         ret, frame = video_capture.read()
         if not ret:
-            print("Failed to capture image")
+            print("⚠️ Failed to capture image")
             break
 
         # Detect faces in the frame
@@ -86,7 +76,7 @@ def recognize_faces(ip_cam_url):
             min_distance = min(distances) if distances else None
             name = "Unknown"
 
-            if min_distance is not None and min_distance < 0.6:  # Adjust threshold as needed
+            if min_distance is not None and min_distance < 0.65:  # Adjusted threshold
                 name = known_face_names[distances.index(min_distance)]
 
             # Draw a rectangle around the face
@@ -100,9 +90,5 @@ def recognize_faces(ip_cam_url):
     video_capture.release()
     cv2.destroyAllWindows()
 
-def run_face_recognition():
-    # Example of running the face recognition functions 
-    ip_cam_url = input("Enter the IP camera URL: ")
-    person_name = input("Enter the name of the person to capture: ")
-    capture_images(person_name, ip_cam_url)
-    recognize_faces(ip_cam_url)
+# Load known faces once at the start
+load_known_faces()

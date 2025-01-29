@@ -1,7 +1,21 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
-from .models import CustomUser, TeacherRegistration, StudentRegistration, AttendanceRecord
+from .models import CustomUser, TeacherRegistration, StudentRegistration, AttendanceRecord, AdminDepartment
 from .forms import CustomUserCreationForm, UserLoginForm, TeacherRegistrationForm, StudentRegistrationForm, AdminDepartmentForm
+from .face_recognition_script import run_face_recognition  # Import the function
+import base64
+from io import BytesIO
+from PIL import Image
+from django.contrib import messages
+from django.core.files.base import ContentFile
+import base64
+import json
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+
+
+def register(request):
+    return render(request, 'attendance/register.html')
 
 
 def index(request):
@@ -40,39 +54,101 @@ def user_login(request):
     return render(request, 'attendance/User_log_in.html', {'form': form})
 
 
-def register(request):
+
+
+import logging
+import json
+import base64
+import os
+from io import BytesIO
+from PIL import Image
+from django.shortcuts import render, redirect
+from .models import CustomUser, StudentRegistration
+from .forms import CustomUserCreationForm, StudentRegistrationForm
+
+logger = logging.getLogger(__name__)
+
+def student_register(request):
     if request.method == 'POST':
         user_form = CustomUserCreationForm(request.POST)
-        student_form = None
-        teacher_form = None
-        if user_form.is_valid():
-            user = user_form.save(commit=False)
-            if user.is_student:
-                student_form = StudentRegistrationForm(request.POST, request.FILES)
-                if student_form.is_valid():
-                    student = student_form.save(commit=False)
-                    student.user = user
-                    user.set_password(student_form.cleaned_data['student_password'])  # Set the password
-                    user.save()
+        student_form = StudentRegistrationForm(request.POST)
+
+        if user_form.is_valid() and student_form.is_valid():
+            try:
+                user = user_form.save(commit=False)
+                user.is_student = True
+                user.save()
+
+                student = student_form.save(commit=False)
+                student.user = user
+                student.save()
+
+                # Handle the captured images
+                captured_images = request.POST.get('captured_images')
+                if captured_images:
+                    images = json.loads(captured_images)
+                    face_images = []
+                    
+                    student_dir = f'media/students/{student.student_Enrollment}'
+                    os.makedirs(student_dir, exist_ok=True)
+
+                    for i, image_data in enumerate(images):
+                        image_data = base64.b64decode(image_data.split(',')[1])
+                        image = Image.open(BytesIO(image_data))
+                        image_path = os.path.join(student_dir, f'face_{i + 1}.png')
+                        image.save(image_path)
+                        face_images.append(image_path)
+
+                    student.face_images = face_images
                     student.save()
-            elif user.is_teacher:
-                teacher_form = TeacherRegistrationForm(request.POST)
-                if teacher_form.is_valid():
-                    teacher = teacher_form.save(commit=False)
-                    teacher.user = user
-                    user.set_password(teacher_form.cleaned_data['teacher_password'])  # Set the password
-                    user.save()
-                    teacher.save()
-            return redirect('index')
+
+                logger.debug('Student registered successfully')
+                return redirect('index')
+
+            except Exception as e:
+                logger.error(f'Error during student registration: {e}')
+                logger.error(f'User form data: {user_form.cleaned_data}')
+                logger.error(f'Student form data: {student_form.cleaned_data}')
+        else:
+            logger.error(f'User form errors: {user_form.errors}')
+            logger.error(f'Student form errors: {student_form.errors}')
+
     else:
         user_form = CustomUserCreationForm()
         student_form = StudentRegistrationForm()
-        teacher_form = TeacherRegistrationForm()
-    return render(request, 'attendance/register.html', {
+
+    return render(request, 'attendance/student_register.html', {
         'user_form': user_form,
         'student_form': student_form,
-        'teacher_form': teacher_form
     })
+
+
+
+
+
+def teacher_register(request):
+    if request.method == 'POST':
+        user_form = CustomUserCreationForm(request.POST)
+        teacher_form = TeacherRegistrationForm(request.POST)
+        if user_form.is_valid() and teacher_form.is_valid():
+            user = user_form.save(commit=False)
+            user.is_teacher = True
+            user.set_password(teacher_form.cleaned_data['teacher_password'])
+            user.save()
+            teacher = teacher_form.save(commit=False)
+            teacher.user = user
+            teacher.save()
+            return redirect('index')
+    else:
+        user_form = CustomUserCreationForm()
+        teacher_form = TeacherRegistrationForm()
+    return render(request, 'attendance/teacher_register.html', {
+        'user_form': user_form,
+        'teacher_form': teacher_form,
+    })
+
+
+
 
 def user_logout(request):
     logout(request)
@@ -94,10 +170,25 @@ def mark_attendance(request):
         return redirect('attendance_success')
     return render(request, 'attendance/AttendanceMark.html', {'students': students})
 
-
 def face_recognition_attendance(request):
-    run_face_recognition()
-    return redirect('attendance_success')
+    if request.method == 'POST':
+        ip_cam_url = request.POST.get('ip_cam_url')
+        student_id = request.POST.get('student_id')
+        captured_image = request.POST.get('captured_image')
+
+        # Decode the base64 image
+        image_data = base64.b64decode(captured_image.split(',')[1])
+        image = Image.open(BytesIO(image_data))
+
+        # Save the image to a temporary file
+        temp_image_path = 'temp_image.png'
+        image.save(temp_image_path)
+
+        run_face_recognition(ip_cam_url, student_id, temp_image_path)
+        return redirect('attendance_success')
+    students = StudentRegistration.objects.all()
+    return render(request, 'attendance/face_recognition.html', {'students': students})
+
 
 def attendance_success(request):
     present_students = AttendanceRecord.objects.filter(status='Present')

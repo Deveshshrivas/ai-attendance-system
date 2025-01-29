@@ -1,0 +1,18 @@
+<!-- filepath: /C:/Users/deves/OneDrive/Desktop/tet/New folder (6)/AttendenceSystem/ai-attendance-system/attendance/templates/attendance/teacher_register.html -->
+{% extends 'attendance/base.html' %}
+{% load form_tags %}
+
+{% block title %}Teacher Register{% endblock %}
+
+{% block content %}
+<h1>Teacher Registration</h1>
+<form method="post">
+    {% csrf_token %}
+    {% for field in teacher_form %}
+        <div class="form-group">
+            {{ field.label_tag }} {{ field|add_class:"teacher_"|add_id_prefix:"teacher_" }}
+        </div>
+    {% endfor %}
+    <button type="submit">Register</button>
+</form>
+{% endblock %}

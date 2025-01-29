@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from .models import CustomUser, TeacherRegistration, StudentRegistration, AdminDepartment
+from .models import CustomUser, StudentRegistration, TeacherRegistration, AdminDepartment
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
@@ -9,18 +9,17 @@ class CustomUserCreationForm(UserCreationForm):
 
 class UserLoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Username'}))
-
-class TeacherRegistrationForm(forms.ModelForm):
-    teacher_password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Password'}))
-
-    class Meta:
-        model = TeacherRegistration
-        fields = ['department_id', 'department_code', 'teacher_name', 'teacher_email', 'teacher_phone', 'teacher_address', 'teacher_password']
+    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Password'}))
 
 class StudentRegistrationForm(forms.ModelForm):
     class Meta:
         model = StudentRegistration
-        fields = ['department_id', 'department_code', 'student_Enrollment', 'student_name', 'student_email', 'student_phone', 'student_address', 'student_photos', 'student_password']
+        fields = ['department_id', 'department_code', 'student_Enrollment', 'student_name', 'student_email', 'student_phone', 'student_address']
+
+class TeacherRegistrationForm(forms.ModelForm):
+    class Meta:
+        model = TeacherRegistration
+        fields = ['department_id', 'department_code', 'teacher_name', 'teacher_email', 'teacher_phone', 'teacher_address']
 
 class AdminDepartmentForm(forms.ModelForm):
     class Meta:
