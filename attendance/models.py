@@ -21,7 +21,7 @@ class AdminDepartment(models.Model):
         return self.department_name
 
 
-class AttendanceRecord(models.Model):
+class Attendance(models.Model):
     student_name = models.CharField(max_length=100)
     student_Enrollment = models.CharField(max_length=100)
     attendance_date = models.DateField(default=now)  # Auto-sets to today's date

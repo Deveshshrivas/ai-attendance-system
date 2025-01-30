@@ -1,29 +1,23 @@
 <!-- filepath: /C:/Users/deves/OneDrive/Desktop/tet/New folder (6)/AttendenceSystem/ai-attendance-system/attendance/templates/attendance/face_recognition.html -->
 {% extends 'attendance/base.html' %}
 
-{% block title %}Face Recognition{% endblock %}
+{% block title %}AI Face Recognition Attendance{% endblock %}
 
 {% block content %}
-<h1>Face Recognition</h1>
-<form method="post" action="{% url 'face_recognition_attendance' %}" enctype="multipart/form-data">
+<h1>AI Face Recognition Attendance</h1>
+
+<form method="post" action="{% url 'face_recognition_attendance' %}">
     {% csrf_token %}
+    
     <label for="ip_cam_url">IP Camera URL:</label>
     <input type="text" id="ip_cam_url" name="ip_cam_url" required>
     <br>
-    <label for="student_id">Select Student:</label>
-    <select id="student_id" name="student_id" required>
-        {% for student in students %}
-        <option value="{{ student.id }}">{{ student.student_name }}</option>
-        {% endfor %}
-    </select>
-    <br>
-    <video id="video" width="640" height="480" autoplay></video>
-    <br>
-    <button type="button" id="capture">Capture Image</button>
-    <br>
-    <input type="hidden" id="captured_image" name="captured_image">
-    <button type="submit">Start Face Recognition</button>
+
+    <button type="submit" id="start_recognition">Start Face Recognition</button>
 </form>
+
+<h2>Live Camera Feed</h2>
+<video id="video" width="640" height="480" autoplay></video>
 
 <script>
     // Access the camera and display the video stream
@@ -36,15 +30,16 @@
             console.error('Error accessing the camera: ', err);
         });
 
-    // Capture the image from the video stream
-    document.getElementById('capture').addEventListener('click', () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/png');
-        document.getElementById('captured_image').value = dataUrl;
+    // Auto-submit form on clicking "Start Face Recognition"
+    document.getElementById('start_recognition').addEventListener('click', () => {
+        const ipCamUrl = document.getElementById('ip_cam_url').value;
+        if (ipCamUrl) {
+            alert('Starting AI Face Recognition...');
+        } else {
+            alert('Please enter a valid IP Camera URL.');
+            event.preventDefault();
+        }
     });
 </script>
+
 {% endblock %}
