@@ -1,199 +1,117 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
-from .models import CustomUser, TeacherRegistration, StudentRegistration, AttendanceRecord, AdminDepartment
-from .forms import CustomUserCreationForm, UserLoginForm, TeacherRegistrationForm, StudentRegistrationForm, AdminDepartmentForm
-from .face_recognition_script import run_face_recognition  # Import the function
-import base64
-from io import BytesIO
-from PIL import Image
-from django.contrib import messages
-from django.core.files.base import ContentFile
-import base64
-import json
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-
-
-def register(request):
-    return render(request, 'attendance/register.html')
-
-
-def index(request):
-    return render(request, 'attendance/index.html')
-
-def admin_department_list(request):
-    departments = AdminDepartment.objects.all()
-    return render(request, 'attendance/admin_department_list.html', {'departments': departments})
-
-def admin_department_create(request):
-    if request.method == 'POST':
-        form = AdminDepartmentForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('admin_department_list')
-    else:
-        form = AdminDepartmentForm()
-    return render(request, 'attendance/admin_department_form.html', {'form': form})
-
-def admin_department_detail(request, pk):
-    department = get_object_or_404(AdminDepartment, pk=pk)
-    return render(request, 'attendance/admin_department_detail.html', {'department': department})
-
-def user_login(request):
-    if request.method == 'POST':
-        form = UserLoginForm(request, data=request.POST)
-        if form.is_valid():
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password')
-            user = authenticate(username=username, password=password)
-            if user is not None:
-                login(request, user)
-                return redirect('index')
-    else:
-        form = UserLoginForm()
-    return render(request, 'attendance/User_log_in.html', {'form': form})
-
-
-
-
-import logging
-import json
-import base64
+import cv2
+import dlib
 import os
-from io import BytesIO
-from PIL import Image
-from django.shortcuts import render, redirect
-from .models import CustomUser, StudentRegistration
-from .forms import CustomUserCreationForm, StudentRegistrationForm
+import numpy as np
+from datetime import datetime
+from scipy.spatial import distance
+from django.utils.timezone import now
+from .models import StudentRegistration, Attendance
 
-logger = logging.getLogger(__name__)
+# Get the absolute path to the model files
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+shape_predictor_path = os.path.join(BASE_DIR, 'static', 'shape_predictor_68_face_landmarks.dat')
+face_rec_model_path = os.path.join(BASE_DIR, 'static', 'dlib_face_recognition_resnet_model_v1.dat')
 
-def student_register(request):
-    if request.method == 'POST':
-        user_form = CustomUserCreationForm(request.POST)
-        student_form = StudentRegistrationForm(request.POST)
+# Initialize Dlib models
+detector = dlib.get_frontal_face_detector()
+shape_predictor = dlib.shape_predictor(shape_predictor_path)
+face_rec_model = dlib.face_recognition_model_v1(face_rec_model_path)
 
-        if user_form.is_valid() and student_form.is_valid():
-            try:
-                user = user_form.save(commit=False)
-                user.is_student = True
-                user.save()
+# In-memory storage for known faces
+known_face_encodings = []
+known_face_names = []
+student_id_map = {}
 
-                student = student_form.save(commit=False)
-                student.user = user
-                student.save()
+def load_known_faces():
+    """Fetch all student IDs and load their face images from the directory."""
+    students = StudentRegistration.objects.all()
+    
+    for student in students:
+        student_id = student.id
+        student_name = student.student_name
+        student_dir = os.path.join(BASE_DIR, 'media', 'student', str(student_id))
 
-                # Handle the captured images
-                captured_images = request.POST.get('captured_images')
-                if captured_images:
-                    images = json.loads(captured_images)
-                    face_images = []
-                    
-                    student_dir = f'media/students/{student.student_Enrollment}'
-                    os.makedirs(student_dir, exist_ok=True)
+        if os.path.exists(student_dir):
+            for file in os.listdir(student_dir):
+                image_path = os.path.join(student_dir, file)
 
-                    for i, image_data in enumerate(images):
-                        image_data = base64.b64decode(image_data.split(',')[1])
-                        image = Image.open(BytesIO(image_data))
-                        image_path = os.path.join(student_dir, f'face_{i + 1}.png')
-                        image.save(image_path)
-                        face_images.append(image_path)
-
-                    student.face_images = face_images
-                    student.save()
-
-                logger.debug('Student registered successfully')
-                return redirect('index')
-
-            except Exception as e:
-                logger.error(f'Error during student registration: {e}')
-                logger.error(f'User form data: {user_form.cleaned_data}')
-                logger.error(f'Student form data: {student_form.cleaned_data}')
+                if image_path.endswith(('.jpg', '.jpeg', '.png')):  # Ensure it's an image
+                    image = cv2.imread(image_path)
+                    faces = detector(image, 1)
+                    if len(faces) > 0:
+                        for face in faces:
+                            shape = shape_predictor(image, face)
+                            face_chip = dlib.get_face_chip(image, shape)
+                            face_encoding = np.array(face_rec_model.compute_face_descriptor(face_chip))
+                            
+                            # Store the known encoding and student details
+                            known_face_encodings.append(face_encoding)
+                            known_face_names.append(student_name)
+                            student_id_map[student_name] = student_id
+                            
+                            print(f"✅ Loaded face encoding for {student_name} from {file}")
+                    else:
+                        print(f"⚠️ No face detected in {image_path}")
         else:
-            logger.error(f'User form errors: {user_form.errors}')
-            logger.error(f'Student form errors: {student_form.errors}')
+            print(f"🚫 No images found for student ID {student_id}")
 
+def mark_attendance(student_id):
+    """Mark attendance for a student in the database."""
+    today = now().date()
+
+    # Check if attendance is already marked for today
+    attendance_record, created = Attendance.objects.get_or_create(
+        student_id=student_id,
+        date=today,
+        defaults={'status': 'Present', 'timestamp': now()}
+    )
+
+    if created:
+        print(f"✅ Attendance marked for Student ID: {student_id}")
     else:
-        user_form = CustomUserCreationForm()
-        student_form = StudentRegistrationForm()
+        print(f"ℹ️ Attendance already recorded for Student ID: {student_id}")
 
-    return render(request, 'attendance/student_register.html', {
-        'user_form': user_form,
-        'student_form': student_form,
-    })
+def recognize_faces(ip_cam_url):
+    """Recognize faces from a live camera feed and mark attendance."""
+    video_capture = cv2.VideoCapture(ip_cam_url)
+    if not video_capture.isOpened():
+        print("⚠️ Failed to open IP camera.")
+        return
 
+    while True:
+        ret, frame = video_capture.read()
+        if not ret:
+            print("⚠️ Failed to capture image")
+            break
 
+        # Detect faces in the frame
+        faces = detector(frame, 1)
+        for face in faces:
+            shape = shape_predictor(frame, face)
+            face_encoding = np.array(face_rec_model.compute_face_descriptor(frame, shape))
 
+            # Match the face encoding with known faces
+            distances = [distance.euclidean(face_encoding, known_enc) for known_enc in known_face_encodings]
+            min_distance = min(distances) if distances else None
+            name = "Unknown"
 
+            if min_distance is not None and min_distance < 0.65:  # Adjusted threshold
+                name = known_face_names[distances.index(min_distance)]
+                student_id = student_id_map.get(name)
 
-def teacher_register(request):
-    if request.method == 'POST':
-        user_form = CustomUserCreationForm(request.POST)
-        teacher_form = TeacherRegistrationForm(request.POST)
-        if user_form.is_valid() and teacher_form.is_valid():
-            user = user_form.save(commit=False)
-            user.is_teacher = True
-            user.set_password(teacher_form.cleaned_data['teacher_password'])
-            user.save()
-            teacher = teacher_form.save(commit=False)
-            teacher.user = user
-            teacher.save()
-            return redirect('index')
-    else:
-        user_form = CustomUserCreationForm()
-        teacher_form = TeacherRegistrationForm()
-    return render(request, 'attendance/teacher_register.html', {
-        'user_form': user_form,
-        'teacher_form': teacher_form,
-    })
+                if student_id:
+                    mark_attendance(student_id)
 
+            # Draw a rectangle around the face
+            cv2.rectangle(frame, (face.left(), face.top()), (face.right(), face.bottom()), (0, 255, 0), 2)
+            cv2.putText(frame, name, (face.left(), face.bottom() + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
+        cv2.imshow("Live Attendance System", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
+    video_capture.release()
+    cv2.destroyAllWindows()
 
-def user_logout(request):
-    logout(request)
-    return redirect('index')
-
-def mark_attendance(request):
-    students = StudentRegistration.objects.all()
-    if request.method == 'POST':
-        attendance_date = request.POST.get('attendance_date')
-        for student in students:
-            status = request.POST.get(f'attendance_{student.student_id}')
-            attendance_record = AttendanceRecord(
-                student_name=student.student_name,
-                student_Enrollment=student.student_Enrollment,
-                attendance_date=attendance_date,
-                status=status
-            )
-            attendance_record.save()
-        return redirect('attendance_success')
-    return render(request, 'attendance/AttendanceMark.html', {'students': students})
-
-def face_recognition_attendance(request):
-    if request.method == 'POST':
-        ip_cam_url = request.POST.get('ip_cam_url')
-        student_id = request.POST.get('student_id')
-        captured_image = request.POST.get('captured_image')
-
-        # Decode the base64 image
-        image_data = base64.b64decode(captured_image.split(',')[1])
-        image = Image.open(BytesIO(image_data))
-
-        # Save the image to a temporary file
-        temp_image_path = 'temp_image.png'
-        image.save(temp_image_path)
-
-        run_face_recognition(ip_cam_url, student_id, temp_image_path)
-        return redirect('attendance_success')
-    students = StudentRegistration.objects.all()
-    return render(request, 'attendance/face_recognition.html', {'students': students})
-
-
-def attendance_success(request):
-    present_students = AttendanceRecord.objects.filter(status='Present')
-    absent_students = AttendanceRecord.objects.filter(status='Absent')
-    return render(request, 'attendance/attendance_success.html', {
-        'present_students': present_students,
-        'absent_students': absent_students
-    })
+# Load known faces once at the start
+load_known_faces()

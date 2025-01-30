@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils.timezone import now
 
 class CustomUser(AbstractUser):
     is_student = models.BooleanField(default=False)
@@ -19,14 +20,21 @@ class AdminDepartment(models.Model):
     def __str__(self):
         return self.department_name
 
+
 class AttendanceRecord(models.Model):
     student_name = models.CharField(max_length=100)
     student_Enrollment = models.CharField(max_length=100)
-    attendance_date = models.DateField()
-    status = models.CharField(max_length=10)
+    attendance_date = models.DateField(default=now)  # Auto-sets to today's date
+    status = models.CharField(
+        max_length=10,
+        choices=[('Present', 'Present'), ('Absent', 'Absent')],
+        default='Present'
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)  # Stores exact time of marking
 
     def __str__(self):
-        return f"{self.student_name} ({self.student_Enrollment}) - {self.attendance_date} - {self.status}"
+        return f"{self.student_name} ({self.student_Enrollment}) - {self.attendance_date} - {self.status} - {self.timestamp.strftime('%H:%M:%S')}"
+
 
 class TeacherRegistration(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
